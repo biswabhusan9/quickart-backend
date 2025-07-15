@@ -1,5 +1,7 @@
 # QuickArt Backend API
 
+**Note:** The API is being migrated to the new Next.js App Router structure (`app/api/[route]/route.js`). The old `pages/api/` routes will be deprecated soon.
+
 This is the Next.js backend API for the QuickArt e-commerce application. It provides authentication and user management functionality.
 
 ## Features
