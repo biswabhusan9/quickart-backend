@@ -3,7 +3,7 @@ export const users = [
   // Example admin user - password: adminpass
   {
     id: 1,
-    email: 'admin@example.com',
+    email: 'admin@biswa.com',
     password: '$2b$10$wNu/mkhgiW3eGlybwByyeuNzOs9VIx7TQ7lBJ7/MDh2IlJ1B43WK2', // 'adminpass' hashed with bcryptjs
     role: 'admin',
   },
@@ -46,6 +46,7 @@ export function setCorsHeaders(req, res) {
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
     'http://127.0.0.1:5175',
+    'https://quickart-frontend-peach.vercel.app',
   ];
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
