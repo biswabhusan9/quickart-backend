@@ -1,10 +1,3 @@
-setCorsHeaders(req, res);
-
-if (req.method === 'OPTIONS') {
-  return res.status(200).end(); // <- Must return here for preflight
-}
-
-
 import { users, verifyToken, COOKIE_NAME, setCorsHeaders } from './_utils';
 import formidable from 'formidable';
 import fs from 'fs';
