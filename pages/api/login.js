@@ -15,5 +15,5 @@ export default function handler(req, res) {
   }
   const token = signToken(user);
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; HttpOnly; Path=/; SameSite=None; Secure`);
-  res.status(200).json({ id: user.id, email: user.email, role: user.role });
+  res.status(200).json({ id: user.id, email: user.email, role: user.role, firstName: user.firstName, lastName: user.lastName });
 } 
