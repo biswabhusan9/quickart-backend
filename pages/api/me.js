@@ -10,23 +10,19 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // ✅ Always set CORS headers
-  setCorsHeaders(req, res);
-
-  // ✅ Respond to preflight request properly
-  // if (req.method === 'OPTIONS') {
-  //   res.status(200).end(); // ✅ This is now allowed
-  //   return;
+  // ✅ Step 1: Handle OPTIONS (preflight request)
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(200).end(); // ✅ End here for preflight
-  }
+    return res.status(200).end();
   }
 
-  // ✅ Token check
+  // ✅ Step 2: Set CORS for normal requests
+  setCorsHeaders(req, res);
+
+  // ✅ Step 3: Token validation
   const cookie = req.headers.cookie || '';
   const token = cookie.split('; ').find(c => c.startsWith(COOKIE_NAME + '='))?.split('=')[1];
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
@@ -37,7 +33,7 @@ export default async function handler(req, res) {
   const user = users.find(u => u.id === payload.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  // ✅ PATCH = update user profile
+  // ✅ Step 4: PATCH request (with or without image)
   if (req.method === 'PATCH') {
     if (req.headers['content-type']?.includes('multipart/form-data')) {
       const form = new formidable.IncomingForm();
@@ -78,7 +74,7 @@ export default async function handler(req, res) {
       });
       return;
     } else {
-      // Handle JSON body
+      // Handle JSON PATCH update (no image)
       const { firstName, lastName, phone, removeProfilePic } = req.body;
       if (firstName) user.firstName = firstName;
       if (lastName) user.lastName = lastName;
@@ -101,7 +97,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // GET profile
+  // ✅ GET user profile
   return res.status(200).json({
     id: user.id,
     email: user.email,
