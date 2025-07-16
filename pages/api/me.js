@@ -12,11 +12,14 @@ export const config = {
 export default async function handler(req, res) {
   // ✅ Step 1: Handle OPTIONS (preflight request)
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(200).end();
+    res.writeHead(200, {
+      'Access-Control-Allow-Origin': req.headers.origin || '*',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    });
+    res.end();
+    return;
   }
 
   // ✅ Step 2: Set CORS for normal requests
