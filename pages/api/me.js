@@ -112,9 +112,9 @@
 //   });
 // }
 
-import path from "path";
 import formidable from "formidable";
-import { promises as fsPromises } from "fs";
+import fs from "fs";
+import path from "path";
 
 export const config = {
   api: {
@@ -123,7 +123,7 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // ✅ Handle CORS preflight
+  // ✅ Handle CORS Preflight
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
     res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // ✅ Set CORS headers for actual requests
+  // ✅ Set CORS Headers for actual requests
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
@@ -141,33 +141,33 @@ export default async function handler(req, res) {
   }
 
   try {
-    const form = new formidable.IncomingForm();
-    form.uploadDir = path.join(process.cwd(), "public/uploads");
-    form.keepExtensions = true;
-
-    // ✅ Ensure upload directory exists
-    await fsPromises.mkdir(form.uploadDir, { recursive: true });
+    const form = formidable({
+      uploadDir: path.join("/tmp"), // ✅ Use /tmp for Vercel compatibility
+      keepExtensions: true,
+    });
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        console.error("Form parsing error:", err);
-        return res.status(500).json({ message: "File parsing error", error: err.message });
+        console.error("Formidable error:", err);
+        return res.status(500).json({ message: "File parsing error" });
       }
 
       const uploadedFile = files?.profile?.[0];
       if (!uploadedFile) {
-        console.warn("No file uploaded in request");
         return res.status(400).json({ message: "No file uploaded" });
       }
 
+      // Simulate saving image or generating URL
       const fileUrl = `/uploads/${path.basename(uploadedFile.filepath)}`;
-      console.log("✅ File uploaded at:", fileUrl);
+      console.log("File uploaded to tmp path:", uploadedFile.filepath);
 
-      return res.status(200).json({ message: "Profile picture updated", url: fileUrl });
+      return res.status(200).json({
+        message: "Profile picture uploaded successfully",
+        url: fileUrl, // ⚠️ In real case, this needs to be saved permanently
+      });
     });
-
   } catch (error) {
-    console.error("Unhandled server error:", error);
-    return res.status(500).json({ message: "Something went wrong", error: error.message });
+    console.error("Server error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
   }
 }
