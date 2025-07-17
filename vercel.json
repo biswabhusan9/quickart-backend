@@ -9,7 +9,7 @@
           },
           {
             "key": "Access-Control-Allow-Origin",
-            "value": "*"
+            "value": "http://localhost:5173"
           },
           {
             "key": "Access-Control-Allow-Methods",
@@ -20,12 +20,6 @@
             "value": "Content-Type, Authorization"
           }
         ]
-      }
-    ],
-    "rewrites": [
-      {
-        "source": "/(.*)",
-        "destination": "/"
       }
     ]
   }

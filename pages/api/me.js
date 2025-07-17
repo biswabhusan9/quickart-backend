@@ -1,4 +1,118 @@
-import { users, verifyToken, COOKIE_NAME, setCorsHeaders } from './_utils';
+// import { users, verifyToken, COOKIE_NAME, setCorsHeaders } from './_utils';
+// import formidable from 'formidable';
+// import fs from 'fs';
+// import path from 'path';
+
+// export const config = {
+//   api: {
+//     bodyParser: false,
+//   },
+// };
+
+// export default async function handler(req, res) {
+//   // ✅ Step 1: Handle OPTIONS (preflight request)
+//   if (req.method === 'OPTIONS') {
+//     res.writeHead(200, {
+//       'Access-Control-Allow-Origin': req.headers.origin || '*',
+//       'Access-Control-Allow-Credentials': 'true',
+//       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+//       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+//     });
+//     res.end();
+//     return;
+//   }
+
+//   // ✅ Step 2: Set CORS for normal requests
+//   setCorsHeaders(req, res);
+
+//   // ✅ Step 3: Token validation
+//   const cookie = req.headers.cookie || '';
+//   const token = cookie.split('; ').find(c => c.startsWith(COOKIE_NAME + '='))?.split('=')[1];
+//   if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+//   const payload = verifyToken(token);
+//   if (!payload) return res.status(401).json({ error: 'Invalid token' });
+
+//   const user = users.find(u => u.id === payload.id);
+//   if (!user) return res.status(404).json({ error: 'User not found' });
+
+//   // ✅ Step 4: PATCH request (with or without image)
+//   if (req.method === 'PATCH') {
+//     if (req.headers['content-type']?.includes('multipart/form-data')) {
+//       const form = new formidable.IncomingForm();
+//       form.uploadDir = path.join(process.cwd(), 'next-auth-api/public/profile-pics');
+//       form.keepExtensions = true;
+
+//       form.parse(req, (err, fields, files) => {
+//         if (err) return res.status(500).json({ error: 'Image upload failed' });
+
+//         if (fields.firstName) user.firstName = fields.firstName;
+//         if (fields.lastName) user.lastName = fields.lastName;
+//         if (fields.phone) user.phone = fields.phone;
+
+//         if (files.profilePic) {
+//           const file = files.profilePic;
+//           const ext = path.extname(file.originalFilename || file.newFilename);
+//           const newFilename = `user_${user.id}_${Date.now()}${ext}`;
+//           const newPath = path.join(form.uploadDir, newFilename);
+//           fs.renameSync(file.filepath, newPath);
+//           user.profilePic = `/profile-pics/${newFilename}`;
+//         }
+
+//         if (fields.removeProfilePic === 'true' && user.profilePic) {
+//           const oldPath = path.join(form.uploadDir, path.basename(user.profilePic));
+//           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+//           user.profilePic = '';
+//         }
+
+//         return res.status(200).json({
+//           id: user.id,
+//           email: user.email,
+//           role: user.role,
+//           firstName: user.firstName,
+//           lastName: user.lastName,
+//           phone: user.phone,
+//           profilePic: user.profilePic || '',
+//         });
+//       });
+//       return;
+//     } else {
+//       // Handle JSON PATCH update (no image)
+//       const { firstName, lastName, phone, removeProfilePic } = req.body;
+//       if (firstName) user.firstName = firstName;
+//       if (lastName) user.lastName = lastName;
+//       if (phone) user.phone = phone;
+//       if (removeProfilePic === true && user.profilePic) {
+//         const picPath = path.join(process.cwd(), 'next-auth-api/public/profile-pics', path.basename(user.profilePic));
+//         if (fs.existsSync(picPath)) fs.unlinkSync(picPath);
+//         user.profilePic = '';
+//       }
+
+//       return res.status(200).json({
+//         id: user.id,
+//         email: user.email,
+//         role: user.role,
+//         firstName: user.firstName,
+//         lastName: user.lastName,
+//         phone: user.phone,
+//         profilePic: user.profilePic || '',
+//       });
+//     }
+//   }
+
+//   // ✅ GET user profile
+//   return res.status(200).json({
+//     id: user.id,
+//     email: user.email,
+//     role: user.role,
+//     firstName: user.firstName,
+//     lastName: user.lastName,
+//     phone: user.phone,
+//     profilePic: user.profilePic || '',
+//   });
+// }
+
+import { users, verifyToken, COOKIE_NAME } from './_utils';
 import formidable from 'formidable';
 import fs from 'fs';
 import path from 'path';
@@ -10,98 +124,112 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // ✅ Step 1: Handle OPTIONS (preflight request)
+  // ✅ Handle CORS
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   if (req.method === 'OPTIONS') {
-    res.writeHead(200, {
-      'Access-Control-Allow-Origin': req.headers.origin || '*',
-      'Access-Control-Allow-Credentials': 'true',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    });
-    res.end();
-    return;
+    return res.status(200).end();
   }
 
-  // ✅ Step 2: Set CORS for normal requests
-  setCorsHeaders(req, res);
-
-  // ✅ Step 3: Token validation
+  // ✅ Extract token from cookie
   const cookie = req.headers.cookie || '';
   const token = cookie.split('; ').find(c => c.startsWith(COOKIE_NAME + '='))?.split('=')[1];
-  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+  if (!token) {
+    return res.status(401).json({ error: 'Not authenticated (missing token)' });
+  }
 
   const payload = verifyToken(token);
-  if (!payload) return res.status(401).json({ error: 'Invalid token' });
+  if (!payload) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
 
   const user = users.find(u => u.id === payload.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
 
-  // ✅ Step 4: PATCH request (with or without image)
+  // ✅ PATCH: update profile with or without image
   if (req.method === 'PATCH') {
+    const uploadDir = path.join(process.cwd(), 'next-auth-api/public/profile-pics');
+
+    // ✅ Handle form data with file
     if (req.headers['content-type']?.includes('multipart/form-data')) {
-      const form = new formidable.IncomingForm();
-      form.uploadDir = path.join(process.cwd(), 'next-auth-api/public/profile-pics');
-      form.keepExtensions = true;
+      const form = formidable({
+        uploadDir,
+        keepExtensions: true,
+      });
 
       form.parse(req, (err, fields, files) => {
-        if (err) return res.status(500).json({ error: 'Image upload failed' });
+        if (err) {
+          return res.status(500).json({ error: 'Failed to parse form data' });
+        }
 
+        // Update text fields
         if (fields.firstName) user.firstName = fields.firstName;
         if (fields.lastName) user.lastName = fields.lastName;
         if (fields.phone) user.phone = fields.phone;
 
+        // Handle profile image
         if (files.profilePic) {
           const file = files.profilePic;
           const ext = path.extname(file.originalFilename || file.newFilename);
           const newFilename = `user_${user.id}_${Date.now()}${ext}`;
-          const newPath = path.join(form.uploadDir, newFilename);
+          const newPath = path.join(uploadDir, newFilename);
           fs.renameSync(file.filepath, newPath);
           user.profilePic = `/profile-pics/${newFilename}`;
         }
 
+        // Remove old image
         if (fields.removeProfilePic === 'true' && user.profilePic) {
-          const oldPath = path.join(form.uploadDir, path.basename(user.profilePic));
+          const oldPath = path.join(uploadDir, path.basename(user.profilePic));
           if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
           user.profilePic = '';
         }
 
-        return res.status(200).json({
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          phone: user.phone,
-          profilePic: user.profilePic || '',
-        });
+        return res.status(200).json(userResponse(user));
       });
-      return;
-    } else {
-      // Handle JSON PATCH update (no image)
-      const { firstName, lastName, phone, removeProfilePic } = req.body;
-      if (firstName) user.firstName = firstName;
-      if (lastName) user.lastName = lastName;
-      if (phone) user.phone = phone;
-      if (removeProfilePic === true && user.profilePic) {
-        const picPath = path.join(process.cwd(), 'next-auth-api/public/profile-pics', path.basename(user.profilePic));
-        if (fs.existsSync(picPath)) fs.unlinkSync(picPath);
-        user.profilePic = '';
-      }
 
-      return res.status(200).json({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone,
-        profilePic: user.profilePic || '',
-      });
+      return;
     }
+
+    // ✅ Handle JSON body (no file)
+    const buffers = [];
+    for await (const chunk of req) {
+      buffers.push(chunk);
+    }
+
+    const data = JSON.parse(Buffer.concat(buffers).toString());
+    const { firstName, lastName, phone, removeProfilePic } = data;
+
+    if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
+    if (phone) user.phone = phone;
+
+    if (removeProfilePic === true && user.profilePic) {
+      const picPath = path.join(uploadDir, path.basename(user.profilePic));
+      if (fs.existsSync(picPath)) fs.unlinkSync(picPath);
+      user.profilePic = '';
+    }
+
+    return res.status(200).json(userResponse(user));
   }
 
-  // ✅ GET user profile
-  return res.status(200).json({
+  // ✅ GET user info
+  if (req.method === 'GET') {
+    return res.status(200).json(userResponse(user));
+  }
+
+  // ❌ Other methods not allowed
+  return res.status(405).json({ error: 'Method Not Allowed' });
+}
+
+function userResponse(user) {
+  return {
     id: user.id,
     email: user.email,
     role: user.role,
@@ -109,5 +237,5 @@ export default async function handler(req, res) {
     lastName: user.lastName,
     phone: user.phone,
     profilePic: user.profilePic || '',
-  });
+  };
 }
