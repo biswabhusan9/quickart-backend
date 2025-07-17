@@ -112,9 +112,9 @@
 //   });
 // }
 
-import formidable from "formidable";
-import fs from "fs";
 import path from "path";
+import formidable from "formidable";
+import { promises as fsPromises } from "fs"; // ✅ Used to create directory
 
 export const config = {
   api: {
@@ -123,7 +123,7 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // ✅ Handle CORS Preflight
+  // ✅ Handle CORS preflight
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
     res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // ✅ Set CORS Headers for actual requests
+  // ✅ Set CORS headers
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
@@ -141,14 +141,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const form = formidable({
-      uploadDir: path.join("/tmp"), // ✅ Use /tmp for Vercel compatibility
-      keepExtensions: true,
-    });
+    const form = new formidable.IncomingForm();
+    form.uploadDir = path.join(process.cwd(), "public/uploads");
+    form.keepExtensions = true;
+
+    // Ensure directory exists
+    await fsPromises.mkdir(form.uploadDir, { recursive: true });
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        console.error("Formidable error:", err);
         return res.status(500).json({ message: "File parsing error" });
       }
 
@@ -157,17 +158,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      // Simulate saving image or generating URL
       const fileUrl = `/uploads/${path.basename(uploadedFile.filepath)}`;
-      console.log("File uploaded to tmp path:", uploadedFile.filepath);
-
-      return res.status(200).json({
-        message: "Profile picture uploaded successfully",
-        url: fileUrl, // ⚠️ In real case, this needs to be saved permanently
-      });
+      return res.status(200).json({ message: "Profile picture updated", url: fileUrl });
     });
-  } catch (error) {
-    console.error("Server error:", error);
-    return res.status(500).json({ message: "Something went wrong" });
+  } catch (e) {
+    return res.status(500).json({ message: "Something went wrong", error: e.message });
   }
 }
