@@ -132,7 +132,7 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // ✅ Set CORS headers
+  // ✅ Set CORS headers for actual requests
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
@@ -145,23 +145,29 @@ export default async function handler(req, res) {
     form.uploadDir = path.join(process.cwd(), "public/uploads");
     form.keepExtensions = true;
 
-    // Ensure directory exists
+    // ✅ Ensure upload directory exists
     await fsPromises.mkdir(form.uploadDir, { recursive: true });
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        return res.status(500).json({ message: "File parsing error" });
+        console.error("Form parsing error:", err);
+        return res.status(500).json({ message: "File parsing error", error: err.message });
       }
 
       const uploadedFile = files?.profile?.[0];
       if (!uploadedFile) {
+        console.warn("No file uploaded in request");
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       const fileUrl = `/uploads/${path.basename(uploadedFile.filepath)}`;
+      console.log("✅ File uploaded at:", fileUrl);
+
       return res.status(200).json({ message: "Profile picture updated", url: fileUrl });
     });
-  } catch {
-    return res.status(500).json({ message: "Something went wrong" });
+
+  } catch (error) {
+    console.error("Unhandled server error:", error);
+    return res.status(500).json({ message: "Something went wrong", error: error.message });
   }
 }
