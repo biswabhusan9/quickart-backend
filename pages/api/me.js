@@ -112,10 +112,11 @@
 //   });
 // }
 
-import { users, verifyToken, COOKIE_NAME } from './_utils';
+import jwt from 'jsonwebtoken';
 import formidable from 'formidable';
 import fs from 'fs';
 import path from 'path';
+import { users } from './data'; // Replace with DB in production
 
 export const config = {
   api: {
@@ -123,119 +124,72 @@ export const config = {
   },
 };
 
+// Helper: Parse form with file
+const parseForm = (req) =>
+  new Promise((resolve, reject) => {
+    const form = new formidable.IncomingForm({
+      uploadDir: path.join(process.cwd(), 'public', 'uploads'),
+      keepExtensions: true,
+    });
+
+    form.parse(req, (err, fields, files) => {
+      if (err) reject(err);
+      else resolve({ fields, files });
+    });
+  });
+
 export default async function handler(req, res) {
-  // ✅ Handle CORS
-  const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
+  // ✅ Fix CORS headers
+  const allowedOrigin = process.env.NODE_ENV === 'development'
+    ? 'http://localhost:5173'
+    : 'https://quickart-frontend.vercel.app'; // update if needed
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(200).end(); // Preflight
   }
 
-  // ✅ Extract token from cookie
-  const cookie = req.headers.cookie || '';
-  const token = cookie.split('; ').find(c => c.startsWith(COOKIE_NAME + '='))?.split('=')[1];
+  // 🛡️ Auth: Extract token
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ message: 'Not logged in' });
 
-  if (!token) {
-    return res.status(401).json({ error: 'Not authenticated (missing token)' });
+  let decoded;
+  try {
+    decoded = jwt.verify(token, 'your-secret-key');
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid token' });
   }
 
-  const payload = verifyToken(token);
-  if (!payload) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
+  const user = users.find(u => u.id === decoded.id);
+  if (!user) return res.status(404).json({ message: 'User not found' });
 
-  const user = users.find(u => u.id === payload.id);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  // ✅ PATCH: update profile with or without image
-  if (req.method === 'PATCH') {
-    const uploadDir = path.join(process.cwd(), 'next-auth-api/public/profile-pics');
-
-    // ✅ Handle form data with file
-    if (req.headers['content-type']?.includes('multipart/form-data')) {
-      const form = formidable({
-        uploadDir,
-        keepExtensions: true,
-      });
-
-      form.parse(req, (err, fields, files) => {
-        if (err) {
-          return res.status(500).json({ error: 'Failed to parse form data' });
-        }
-
-        // Update text fields
-        if (fields.firstName) user.firstName = fields.firstName;
-        if (fields.lastName) user.lastName = fields.lastName;
-        if (fields.phone) user.phone = fields.phone;
-
-        // Handle profile image
-        if (files.profilePic) {
-          const file = files.profilePic;
-          const ext = path.extname(file.originalFilename || file.newFilename);
-          const newFilename = `user_${user.id}_${Date.now()}${ext}`;
-          const newPath = path.join(uploadDir, newFilename);
-          fs.renameSync(file.filepath, newPath);
-          user.profilePic = `/profile-pics/${newFilename}`;
-        }
-
-        // Remove old image
-        if (fields.removeProfilePic === 'true' && user.profilePic) {
-          const oldPath = path.join(uploadDir, path.basename(user.profilePic));
-          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-          user.profilePic = '';
-        }
-
-        return res.status(200).json(userResponse(user));
-      });
-
-      return;
-    }
-
-    // ✅ Handle JSON body (no file)
-    const buffers = [];
-    for await (const chunk of req) {
-      buffers.push(chunk);
-    }
-
-    const data = JSON.parse(Buffer.concat(buffers).toString());
-    const { firstName, lastName, phone, removeProfilePic } = data;
-
-    if (firstName) user.firstName = firstName;
-    if (lastName) user.lastName = lastName;
-    if (phone) user.phone = phone;
-
-    if (removeProfilePic === true && user.profilePic) {
-      const picPath = path.join(uploadDir, path.basename(user.profilePic));
-      if (fs.existsSync(picPath)) fs.unlinkSync(picPath);
-      user.profilePic = '';
-    }
-
-    return res.status(200).json(userResponse(user));
-  }
-
-  // ✅ GET user info
   if (req.method === 'GET') {
-    return res.status(200).json(userResponse(user));
+    return res.status(200).json({ user });
   }
 
-  // ❌ Other methods not allowed
-  return res.status(405).json({ error: 'Method Not Allowed' });
-}
+  if (req.method === 'PATCH') {
+    try {
+      const { fields, files } = await parseForm(req);
 
-function userResponse(user) {
-  return {
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    phone: user.phone,
-    profilePic: user.profilePic || '',
-  };
+      if (fields.firstName) user.firstName = fields.firstName;
+      if (fields.lastName) user.lastName = fields.lastName;
+      if (fields.phoneNumber) user.phoneNumber = fields.phoneNumber;
+
+      if (files.profilePic) {
+        const file = files.profilePic[0];
+        user.profilePic = `/uploads/${path.basename(file.filepath)}`;
+      }
+
+      return res.status(200).json({ user });
+    } catch (error) {
+      console.error('Update error:', error);
+      return res.status(500).json({ message: 'Failed to update profile.' });
+    }
+  }
+
+  return res.status(405).json({ message: 'Method not allowed' });
 }
