@@ -112,11 +112,9 @@
 //   });
 // }
 
-import jwt from 'jsonwebtoken';
-import formidable from 'formidable';
-import fs from 'fs';
-import path from 'path';
-import { users } from './data'; // Replace with DB in production
+import path from "path";
+import formidable from "formidable";
+import { promises as fsPromises } from "fs";
 
 export const config = {
   api: {
@@ -124,72 +122,46 @@ export const config = {
   },
 };
 
-// Helper: Parse form with file
-const parseForm = (req) =>
-  new Promise((resolve, reject) => {
-    const form = new formidable.IncomingForm({
-      uploadDir: path.join(process.cwd(), 'public', 'uploads'),
-      keepExtensions: true,
-    });
-
-    form.parse(req, (err, fields, files) => {
-      if (err) reject(err);
-      else resolve({ fields, files });
-    });
-  });
-
 export default async function handler(req, res) {
-  // ✅ Fix CORS headers
-  const allowedOrigin = process.env.NODE_ENV === 'development'
-    ? 'http://localhost:5173'
-    : 'https://quickart-frontend.vercel.app'; // update if needed
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Vary', 'Origin');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end(); // Preflight
+  // ✅ Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    return res.status(200).end();
   }
 
-  // 🛡️ Auth: Extract token
-  const token = req.cookies.token;
-  if (!token) return res.status(401).json({ message: 'Not logged in' });
+  // ✅ Set CORS headers
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  let decoded;
+  if (req.method !== "PATCH") {
+    return res.status(405).json({ message: "Method Not Allowed" });
+  }
+
   try {
-    decoded = jwt.verify(token, 'your-secret-key');
-  } catch (err) {
-    return res.status(401).json({ message: 'Invalid token' });
-  }
+    const form = new formidable.IncomingForm();
+    form.uploadDir = path.join(process.cwd(), "public/uploads");
+    form.keepExtensions = true;
 
-  const user = users.find(u => u.id === decoded.id);
-  if (!user) return res.status(404).json({ message: 'User not found' });
+    // Ensure directory exists
+    await fsPromises.mkdir(form.uploadDir, { recursive: true });
 
-  if (req.method === 'GET') {
-    return res.status(200).json({ user });
-  }
-
-  if (req.method === 'PATCH') {
-    try {
-      const { fields, files } = await parseForm(req);
-
-      if (fields.firstName) user.firstName = fields.firstName;
-      if (fields.lastName) user.lastName = fields.lastName;
-      if (fields.phoneNumber) user.phoneNumber = fields.phoneNumber;
-
-      if (files.profilePic) {
-        const file = files.profilePic[0];
-        user.profilePic = `/uploads/${path.basename(file.filepath)}`;
+    form.parse(req, async (err, fields, files) => {
+      if (err) {
+        return res.status(500).json({ message: "File parsing error" });
       }
 
-      return res.status(200).json({ user });
-    } catch (error) {
-      console.error('Update error:', error);
-      return res.status(500).json({ message: 'Failed to update profile.' });
-    }
-  }
+      const uploadedFile = files?.profile?.[0];
+      if (!uploadedFile) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
 
-  return res.status(405).json({ message: 'Method not allowed' });
+      const fileUrl = `/uploads/${path.basename(uploadedFile.filepath)}`;
+      return res.status(200).json({ message: "Profile picture updated", url: fileUrl });
+    });
+  } catch {
+    return res.status(500).json({ message: "Something went wrong" });
+  }
 }
