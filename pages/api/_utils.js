@@ -1,3 +1,9 @@
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+
+const JWT_SECRET = 'supersecretkey'; // Use env var in production
+const COOKIE_NAME = 'token';
+
 // Mock database (in-memory array)
 export const users = [
   // Example admin user - password: adminpass
@@ -6,14 +12,12 @@ export const users = [
     email: 'admin@biswa.com',
     password: '$2b$10$wNu/mkhgiW3eGlybwByyeuNzOs9VIx7TQ7lBJ7/MDh2IlJ1B43WK2', // 'adminpass' hashed with bcryptjs
     role: 'admin',
+    firstName: 'Admin',
+    lastName: 'User',
+    phone: '',
+    profilePic: '',
   },
 ];
-
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-
-const JWT_SECRET = 'supersecretkey'; // Use env var in production
-const COOKIE_NAME = 'token';
 
 export function hashPassword(password) {
   return bcrypt.hashSync(password, 10);
@@ -32,8 +36,12 @@ export function signToken(user) {
 
 export function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch {
+    console.log('Verifying token:', token);
+    const result = jwt.verify(token, JWT_SECRET);
+    console.log('Token verification result:', result);
+    return result;
+  } catch (err) {
+    console.error('Token verification failed:', err.message);
     return null;
   }
 }
@@ -47,15 +55,18 @@ export function setCorsHeaders(req, res) {
     'http://127.0.0.1:5174',
     'http://127.0.0.1:5175',
     'https://quickart-murex.vercel.app',
+    'https://quickart-frontend.vercel.app',
+    'https://quickart.vercel.app',
   ];
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
   }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
 }
 
 export { COOKIE_NAME };
